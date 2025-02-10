@@ -1,42 +1,45 @@
 package com.jakewharton.retrofit2.converter.kotlinx.serialization
 
-import kotlinx.serialization.KSerialLoader
-import kotlinx.serialization.KSerialSaver
+import java.lang.reflect.Type
+import kotlinx.serialization.BinaryFormat
+import kotlinx.serialization.DeserializationStrategy
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerialFormat
+import kotlinx.serialization.SerializationStrategy
+import kotlinx.serialization.StringFormat
+import kotlinx.serialization.serializer
 import okhttp3.MediaType
 import okhttp3.RequestBody
 import okhttp3.ResponseBody
 
-@Suppress("UNCHECKED_CAST") // Widening T to Any
 internal sealed class Serializer {
-  abstract fun <T> fromResponseBody(loader: KSerialLoader<T>, body: ResponseBody): T
-  abstract fun <T> toRequestBody(contentType: MediaType, saver: KSerialSaver<T>, value: T): RequestBody
+  abstract fun <T> fromResponseBody(loader: DeserializationStrategy<T>, body: ResponseBody): T
+  abstract fun <T> toRequestBody(contentType: MediaType, saver: SerializationStrategy<T>, value: T): RequestBody
 
-  class FromString(
-      private val loader: Loader<String>,
-      private val saver: Saver<String>
-  ) : Serializer() {
-    override fun <T> fromResponseBody(loader: KSerialLoader<T>, body: ResponseBody): T {
+  protected abstract val format: SerialFormat
+
+  fun serializer(type: Type): KSerializer<Any> = format.serializersModule.serializer(type)
+
+  class FromString(override val format: StringFormat) : Serializer() {
+    override fun <T> fromResponseBody(loader: DeserializationStrategy<T>, body: ResponseBody): T {
       val string = body.string()
-      return loader(loader as KSerialLoader<Any>, string) as T
+      return format.decodeFromString(loader, string)
     }
 
-    override fun <T> toRequestBody(contentType: MediaType, saver: KSerialSaver<T>, value: T): RequestBody {
-      val string = saver(saver as KSerialSaver<Any>, value as Any)
+    override fun <T> toRequestBody(contentType: MediaType, saver: SerializationStrategy<T>, value: T): RequestBody {
+      val string = format.encodeToString(saver, value)
       return RequestBody.create(contentType, string)
     }
   }
 
-  class FromBytes(
-      private val loader: Loader<ByteArray>,
-      private val saver: Saver<ByteArray>
-  ): Serializer() {
-    override fun <T> fromResponseBody(loader: KSerialLoader<T>, body: ResponseBody): T {
+  class FromBytes(override val format: BinaryFormat) : Serializer() {
+    override fun <T> fromResponseBody(loader: DeserializationStrategy<T>, body: ResponseBody): T {
       val bytes = body.bytes()
-      return loader(loader as KSerialLoader<Any>, bytes) as T
+      return format.decodeFromByteArray(loader, bytes)
     }
 
-    override fun <T> toRequestBody(contentType: MediaType, saver: KSerialSaver<T>, value: T): RequestBody {
-      val bytes = saver(saver as KSerialSaver<Any>, value as Any)
+    override fun <T> toRequestBody(contentType: MediaType, saver: SerializationStrategy<T>, value: T): RequestBody {
+      val bytes = format.encodeToByteArray(saver, value)
       return RequestBody.create(contentType, bytes)
     }
   }

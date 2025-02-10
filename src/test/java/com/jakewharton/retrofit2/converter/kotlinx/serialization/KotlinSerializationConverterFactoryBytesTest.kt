@@ -1,10 +1,10 @@
 package com.jakewharton.retrofit2.converter.kotlinx.serialization
 
-import kotlinx.serialization.SerialId
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JSON
 import kotlinx.serialization.protobuf.ProtoBuf
-import okhttp3.MediaType
+import kotlinx.serialization.protobuf.ProtoNumber
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okio.Buffer
@@ -19,8 +19,9 @@ import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
 
-private val bobBytes = ByteString.of(0x0a, 0x03, 'B'.toByte(), 'o'.toByte(), 'b'.toByte())
+private val bobBytes = ByteString.of(0x0a, 0x03, 'B'.code.toByte(), 'o'.code.toByte(), 'b'.code.toByte())
 
+@ExperimentalSerializationApi
 class KotlinSerializationConverterFactoryBytesTest {
   @get:Rule val server = MockWebServer()
 
@@ -32,15 +33,14 @@ class KotlinSerializationConverterFactoryBytesTest {
   }
 
   @Serializable
-  data class User(@SerialId(1) val name: String)
+  data class User(@ProtoNumber(1) val name: String)
 
   @Before fun setUp() {
-    val contentType = MediaType.parse("application/x-protobuf")!!
-    val protobuf = ProtoBuf
+    val contentType = "application/x-protobuf".toMediaType()
     val retrofit = Retrofit.Builder()
-        .baseUrl(server.url("/"))
-        .addConverterFactory(bytesBased(contentType, protobuf::load, protobuf::dump))
-        .build()
+      .baseUrl(server.url("/"))
+      .addConverterFactory(ProtoBuf.asConverterFactory(contentType))
+      .build()
     service = retrofit.create(Service::class.java)
   }
 
